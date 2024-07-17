@@ -66,8 +66,17 @@ int main() {
     read(client_fd, req, sizeof(req));
     char* method = strtok(req, " ");
     char* path = strtok(NULL, " ");
+    char* version = strtok(NULL, "\r\n");
+    strtok(NULL, " ");
+    char* host = strtok(NULL, "\r\n");
+    strtok(NULL, " ");
+    char* accept = strtok(NULL, "\r\n");
+    strtok(NULL, " ");
+    char* user_agent = strtok(NULL, "\r\n");
 
     if (strcmp(method, "GET") == 0) {
+        char custom_response[1024]; 
+
         if (strcmp(path, "/") == 0) {
             send(client_fd, ok_response, strlen(ok_response), 0);
             close(client_fd);
@@ -76,18 +85,26 @@ int main() {
             return 0;
         }
 
+        if (strcmp(path, "/user-agent") == 0) {
+            sprintf(custom_response, 
+                "HTTP/1.1 200 OK\r\n"
+                "Content-Type: text/plain\r\n"
+                "Content-Length: %lu\r\n\r\n%s", strlen(user_agent), user_agent);
+            send(client_fd, custom_response, strlen(custom_response), 0);
+            close(client_fd);
+            close(server_fd);
+            printf("Method: %s\nPath: %s\nVersion: %s\nHost: %s\nAccept: %s\nAgent: %s\n", method, path, version, host, accept, user_agent);
+            return 0;
+        }
+
         char* base = strtok(path, "/");
         char* slug = strtok(NULL, "/");
 
         if (strcmp(base, "echo") == 0) {
-            char custom_response[1024]; 
-
-            printf("%lu - %s\n", strlen(slug), slug);
             sprintf(custom_response, 
                 "HTTP/1.1 200 OK\r\n"
                 "Content-Type: text/plain\r\n"
                 "Content-Length: %lu\r\n\r\n%s", strlen(slug), slug);
-
             send(client_fd, custom_response, strlen(custom_response), 0);
             close(client_fd);
             close(server_fd);
