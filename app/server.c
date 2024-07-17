@@ -69,11 +69,10 @@ int main() {
     char* version = strtok(NULL, "\r\n");
     strtok(NULL, " ");
     char* host = strtok(NULL, "\r\n");
-    strtok(NULL, " ");
-    char* accept = strtok(NULL, "\r\n");
+    printf("%s\n", host);
     strtok(NULL, " ");
     char* user_agent = strtok(NULL, "\r\n");
-    printf("Method: %s\nPath: %s\nVersion: %s\nHost: %s\nAccept: %s\nAgent: %s\n", method, path, version, host, accept, user_agent);
+    printf("Method: %s\nPath: %s\nVersion: %s\nHost: %s\nAgent: %s\n", method, path, version, host, user_agent);
 
     if (strcmp(method, "GET") == 0) {
         char custom_response[1024]; 
@@ -94,7 +93,7 @@ int main() {
             send(client_fd, custom_response, strlen(custom_response), 0);
             close(client_fd);
             close(server_fd);
-            printf("Method: %s\nPath: %s\nVersion: %s\nHost: %s\nAccept: %s\nAgent: %s\n", method, path, version, host, accept, user_agent);
+            printf("Method: %s\nPath: %s\nVersion: %s\nHost: %s\nAgent: %s\n", method, path, version, host, user_agent);
             return 0;
         }
 
