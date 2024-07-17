@@ -59,23 +59,46 @@ int main() {
 	printf("Waiting for a client to connect...\n");
 	client_addr_len = sizeof(client_addr);
 
-	int client = accept(server_fd, (struct sockaddr *) &client_addr, &client_addr_len);
+	int client_fd = accept(server_fd, (struct sockaddr *) &client_addr, &client_addr_len);
 	printf("Client connected\n");
 
     char req[1024]; 
-    read(client, req, sizeof(req));
+    read(client_fd, req, sizeof(req));
     char* method = strtok(req, " ");
     char* path = strtok(NULL, " ");
-    printf("Method: %s\nPath: %s\n", method, path);
 
-    if (strcmp(method, "GET") == 0 && strcmp(path, "/") == 0) {
-        send(client, ok_response, strlen(ok_response), 0);
-    } else {
-        send(client, not_found_404, strlen(not_found_404), 0);
+    if (strcmp(method, "GET") == 0) {
+        if (strcmp(path, "/") == 0) {
+            send(client_fd, ok_response, strlen(ok_response), 0);
+            close(client_fd);
+            close(server_fd);
+            printf("Method: %s\nPath: %s\n", method, path);
+            return 0;
+        }
+
+        char* base = strtok(path, "/");
+        char* slug = strtok(NULL, "/");
+
+        if (strcmp(base, "echo") == 0) {
+            char custom_response[1024]; 
+
+            printf("%lu - %s\n", strlen(slug), slug);
+            sprintf(custom_response, 
+                "HTTP/1.1 200 OK\r\n"
+                "Content-Type: text/plain\r\n"
+                "Content-Length: %lu\r\n\r\n%s", strlen(slug), slug);
+
+            send(client_fd, custom_response, strlen(custom_response), 0);
+            close(client_fd);
+            close(server_fd);
+            printf("Method: %s\nPath: %s\n", method, path);
+            return 0;
+        }
+        
+        send(client_fd, not_found_404, strlen(not_found_404), 0);
+        close(client_fd);
+        close(server_fd);
     }
-
-    close(client);
-	close(server_fd);
 
 	return 0;
 }
