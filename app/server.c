@@ -1,3 +1,4 @@
+#include <stdint.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <sys/socket.h>
@@ -6,6 +7,9 @@
 #include <string.h>
 #include <errno.h>
 #include <unistd.h>
+
+char* ok_response = "HTTP/1.1 200 OK\r\n\r\n";
+char* not_found_404 = "HTTP/1.1 404 NOT FOUND\r\n\r\n";
 
 int main() {
 	// Disable output buffering
@@ -17,8 +21,10 @@ int main() {
 
 	// Uncomment this block to pass the first stage
 
-	int server_fd, client_addr_len;
+	int server_fd;
+    socklen_t client_addr_len;
 	struct sockaddr_in client_addr;
+
 
 	server_fd = socket(AF_INET, SOCK_STREAM, 0);
 	if (server_fd == -1) {
@@ -56,9 +62,19 @@ int main() {
 	int client = accept(server_fd, (struct sockaddr *) &client_addr, &client_addr_len);
 	printf("Client connected\n");
 
-    char* response = "HTTP/1.1 200 OK\r\n\r\n";
-    send(client, response, strlen(response), 0);
+    char req[1024]; 
+    read(client, req, sizeof(req));
+    char* method = strtok(req, " ");
+    char* path = strtok(NULL, " ");
+    printf("Method: %s\nPath: %s\n", method, path);
 
+    if (strcmp(method, "GET") == 0 && strcmp(path, "/") == 0) {
+        send(client, ok_response, strlen(ok_response), 0);
+    } else {
+        send(client, not_found_404, strlen(not_found_404), 0);
+    }
+
+    close(client);
 	close(server_fd);
 
 	return 0;
