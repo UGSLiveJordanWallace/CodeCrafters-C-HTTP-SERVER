@@ -73,6 +73,7 @@ int main() {
     char* accept = strtok(NULL, "\r\n");
     strtok(NULL, " ");
     char* user_agent = strtok(NULL, "\r\n");
+    printf("Method: %s\nPath: %s\nVersion: %s\nHost: %s\nAccept: %s\nAgent: %s\n", method, path, version, host, accept, user_agent);
 
     if (strcmp(method, "GET") == 0) {
         char custom_response[1024]; 
