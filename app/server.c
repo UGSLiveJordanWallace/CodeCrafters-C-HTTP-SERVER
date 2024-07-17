@@ -9,7 +9,7 @@
 #include <unistd.h>
 
 char* ok_response = "HTTP/1.1 200 OK\r\n\r\n";
-char* not_found_404 = "HTTP/1.1 404 NOT FOUND\r\n\r\n";
+char* not_found_404 = "HTTP/1.1 404 Not Found\r\n\r\n";
 
 int main() {
 	// Disable output buffering
