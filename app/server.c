@@ -74,48 +74,41 @@ int main() {
     char* user_agent = strtok(NULL, "\r\n");
     printf("Method: %s\nPath: %s\nVersion: %s\nHost: %s\nAgent: %s\n", method, path, version, host, user_agent);
 
-    if (strcmp(method, "GET") == 0) {
-        char custom_response[1024]; 
+    for (;;) {
+        if (strcmp(method, "GET") == 0) {
+            char custom_response[1024]; 
 
-        if (strcmp(path, "/") == 0) {
-            send(client_fd, ok_response, strlen(ok_response), 0);
-            close(client_fd);
-            close(server_fd);
-            printf("Method: %s\nPath: %s\n", method, path);
-            return 0;
+            if (strcmp(path, "/") == 0) {
+                send(client_fd, ok_response, strlen(ok_response), 0);
+                close(client_fd);
+                close(server_fd);
+                printf("Method: %s\nPath: %s\n", method, path);
+            } else if (strcmp(path, "/user-agent") == 0) {
+                sprintf(custom_response, 
+                        "HTTP/1.1 200 OK\r\n"
+                        "Content-Type: text/plain\r\n"
+                        "Content-Length: %lu\r\n\r\n%s", strlen(user_agent), user_agent);
+                send(client_fd, custom_response, strlen(custom_response), 0);
+                close(client_fd);
+                close(server_fd);
+                printf("Method: %s\nPath: %s\nVersion: %s\nHost: %s\nAgent: %s\n", method, path, version, host, user_agent);
+            } else if (strncmp(path, "/echo", 5) == 0) {
+                char* slug = strtok(NULL, "/");
+                sprintf(custom_response, 
+                        "HTTP/1.1 200 OK\r\n"
+                        "Content-Type: text/plain\r\n"
+                        "Content-Length: %lu\r\n\r\n%s", strlen(slug), slug);
+                send(client_fd, custom_response, strlen(custom_response), 0);
+                close(client_fd);
+                close(server_fd);
+                printf("Method: %s\nPath: %s\n", method, path);
+            } else {
+                send(client_fd, not_found_404, strlen(not_found_404), 0);
+            }
         }
-
-        if (strcmp(path, "/user-agent") == 0) {
-            sprintf(custom_response, 
-                "HTTP/1.1 200 OK\r\n"
-                "Content-Type: text/plain\r\n"
-                "Content-Length: %lu\r\n\r\n%s", strlen(user_agent), user_agent);
-            send(client_fd, custom_response, strlen(custom_response), 0);
-            close(client_fd);
-            close(server_fd);
-            printf("Method: %s\nPath: %s\nVersion: %s\nHost: %s\nAgent: %s\n", method, path, version, host, user_agent);
-            return 0;
-        }
-
-        char* base = strtok(path, "/");
-        char* slug = strtok(NULL, "/");
-
-        if (strcmp(base, "echo") == 0) {
-            sprintf(custom_response, 
-                "HTTP/1.1 200 OK\r\n"
-                "Content-Type: text/plain\r\n"
-                "Content-Length: %lu\r\n\r\n%s", strlen(slug), slug);
-            send(client_fd, custom_response, strlen(custom_response), 0);
-            close(client_fd);
-            close(server_fd);
-            printf("Method: %s\nPath: %s\n", method, path);
-            return 0;
-        }
-        
-        send(client_fd, not_found_404, strlen(not_found_404), 0);
-        close(client_fd);
-        close(server_fd);
     }
 
+    close(client_fd);
+    close(server_fd);
 	return 0;
 }
