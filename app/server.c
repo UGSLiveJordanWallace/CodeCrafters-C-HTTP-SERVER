@@ -163,6 +163,9 @@ void handle_client_connection(int client_fd) {
                     "Content-Length: %lu\r\n\r\n%s", strlen(slug), slug);
             send(client_fd, custom_response, strlen(custom_response), 0);
             printf("Client Connection:\n Method: %s\nPath: %s\n", header.method, header.path);
+        } else if (strncmp(header.path, "/files", 6) == 0) {
+            strtok(header.path, "/");
+            char* slug = strtok(NULL, "/");
         } else {
             send(client_fd, not_found_404, strlen(not_found_404), 0);
         }
