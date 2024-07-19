@@ -9,8 +9,9 @@
 #include <errno.h>
 #include <unistd.h>
 
-char* ok_response = "HTTP/1.1 200 OK\r\n\r\n";
+char* ok_response_200 = "HTTP/1.1 200 OK\r\n\r\n";
 char* not_found_404 = "HTTP/1.1 404 Not Found\r\n\r\n";
+char* file_created_201 = "HTTP/1.1 201 Created\r\n\r\n";
 
 void handle_client_connection(int client_fd, int argc, char* argv[]);
 
@@ -199,7 +200,7 @@ void handle_client_connection(int client_fd, int argc, char* argv[]) {
     if (strcmp(header.method, "GET") == 0) {
 
         if (strcmp(header.path, "/") == 0) {
-            send(client_fd, ok_response, strlen(ok_response), 0);
+            send(client_fd, ok_response_200, strlen(ok_response_200), 0);
             printf("Client Connection:\n Method: %s Path: %s\n", header.method, header.path);
         } else if (strcmp(header.path, "/user-agent") == 0) {
             sprintf(response, 
@@ -242,7 +243,7 @@ void handle_client_connection(int client_fd, int argc, char* argv[]) {
             char* filename = strtok(NULL, "/");
             if (create_file(argv[2], filename, header.body, header.content_length) == 0) {
                 memset(response, '\0', 1);
-                strncpy(response, "HTTP/1.1 201 Created\r\n\r\n", 23);
+                strncpy(response, file_created_201, strlen(file_created_201));
                 send(client_fd, response, strlen(response), 0);
                 printf("Client Connection:\n Method: %s\nPath: %s\n", header.method, header.path);
             } else {
