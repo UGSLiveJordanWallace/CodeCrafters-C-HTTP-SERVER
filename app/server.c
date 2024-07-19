@@ -12,7 +12,7 @@
 char* ok_response = "HTTP/1.1 200 OK\r\n\r\n";
 char* not_found_404 = "HTTP/1.1 404 Not Found\r\n\r\n";
 
-void handle_client_connection(int client_fd);
+void handle_client_connection(int client_fd, int argc, char* argv[]);
 
 typedef struct {
     char* method;
@@ -23,7 +23,7 @@ typedef struct {
     char* user_agent;
 } HTTP_Header;
 
-int main() {
+int main(int argc, char* argv[]) {
 	// Disable output buffering
 	setbuf(stdout, NULL);
 	setbuf(stderr, NULL);
@@ -62,7 +62,7 @@ int main() {
 		return 1;
 	}
 
-	int connection_backlog = 5;
+	int connection_backlog = 10;
 	if (listen(server_fd, connection_backlog) != 0) {
 		printf("Listen failed: %s \n", strerror(errno));
 		return 1;
@@ -90,7 +90,7 @@ int main() {
                     int client_fd = accept(server_fd, (struct sockaddr *) &client_addr, &client_addr_len);
                     FD_SET(client_fd, &current_sockets);
                 } else {
-                    handle_client_connection(i);
+                    handle_client_connection(i, argc, argv);
                     FD_CLR(i, &current_sockets);
                 }
             }
@@ -102,23 +102,27 @@ int main() {
 	return 0;
 }
 
-const char* get_file_contents(char* filename) {
+const char* get_file_contents(char* filename, const char* dir) {
 
-    FILE* fs = fopen(filename, "r");
+    char* full_path = (char*)calloc(strlen(dir) + strlen(filename), sizeof(char));
+    strncpy(full_path, dir, strlen(dir));
+    strncat(full_path, filename, strlen(filename));
+
+    printf("Getting File %s From Path: %s\nFull Path: %s\n", filename, dir, full_path);
+
+    FILE* fs = fopen(full_path, "r");
     if (fs == NULL) {
         return NULL;
     }
 
-    char buffer[128];
-    uint16_t size = 0;
+    fseek(fs, 0, SEEK_END);
+    uint16_t size = ftell(fs);
+    fseek(fs, 0, SEEK_SET); 
     char* out = (char*)calloc(size, sizeof(char));
+    fread(out, size, 1, fs);
 
-    while (fgets(buffer, 128, fs)) {
-        size += strlen(buffer);
-        out = (char*)realloc(out, size * sizeof(char));
-        strncat(out, buffer, strlen(buffer));
-    }
-    
+    free(full_path);
+
     return out;
 }
 
@@ -154,7 +158,7 @@ HTTP_Header parse_header(char req[1024]) {
     return header;
 }
 
-void handle_client_connection(int client_fd) {
+void handle_client_connection(int client_fd, int argc, char* argv[]) {
     char req[1024]; 
     read(client_fd, req, sizeof(req));
     HTTP_Header header = parse_header(req);
@@ -181,11 +185,11 @@ void handle_client_connection(int client_fd) {
                     "Content-Length: %lu\r\n\r\n%s", strlen(slug), slug);
             send(client_fd, custom_response, strlen(custom_response), 0);
             printf("Client Connection:\n Method: %s\nPath: %s\n", header.method, header.path);
-        } else if (strncmp(header.path, "/files", 6) == 0) {
+        } else if (strncmp(header.path, "/files", 6) == 0 && strcmp(argv[1], "--directory") == 0) {
             strtok(header.path, "/");
             char* filename = strtok(NULL, "/");
             printf("Getting File: %s\n", filename);
-            const char* file_contents = get_file_contents(filename);
+            const char* file_contents = get_file_contents(filename, argv[2]);
             if (file_contents == NULL) {
                 send(client_fd, not_found_404, strlen(not_found_404), 0);
             } else {
