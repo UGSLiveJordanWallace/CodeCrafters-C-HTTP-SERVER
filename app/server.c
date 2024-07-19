@@ -9,8 +9,6 @@
 #include <errno.h>
 #include <unistd.h>
 
-#include <pthread.h>
-
 char* ok_response = "HTTP/1.1 200 OK\r\n\r\n";
 char* not_found_404 = "HTTP/1.1 404 Not Found\r\n\r\n";
 
@@ -104,7 +102,27 @@ int main() {
 	return 0;
 }
 
-HTTP_Header parse_header(char* req) {
+const char* get_file_contents(char* filename) {
+
+    FILE* fs = fopen(filename, "r");
+    if (fs == NULL) {
+        return NULL;
+    }
+
+    char buffer[128];
+    uint16_t size = 0;
+    char* out = (char*)calloc(size, sizeof(char));
+
+    while (fgets(buffer, 128, fs)) {
+        size += strlen(buffer);
+        out = (char*)realloc(out, size * sizeof(char));
+        strncat(out, buffer, strlen(buffer));
+    }
+    
+    return out;
+}
+
+HTTP_Header parse_header(char req[1024]) {
     printf("\nHeader Parser Logs\n");
     printf("------------------\n");
     HTTP_Header header;
@@ -165,7 +183,19 @@ void handle_client_connection(int client_fd) {
             printf("Client Connection:\n Method: %s\nPath: %s\n", header.method, header.path);
         } else if (strncmp(header.path, "/files", 6) == 0) {
             strtok(header.path, "/");
-            char* slug = strtok(NULL, "/");
+            char* filename = strtok(NULL, "/");
+            printf("Getting File: %s\n", filename);
+            const char* file_contents = get_file_contents(filename);
+            if (file_contents == NULL) {
+                send(client_fd, not_found_404, strlen(not_found_404), 0);
+            } else {
+                sprintf(custom_response, 
+                        "HTTP/1.1 200 OK\r\n"
+                        "Content-Type: text/octet-stream\r\n"
+                        "Content-Length: %lu\r\n\r\n%s", strlen(file_contents), file_contents);
+                send(client_fd, custom_response, strlen(custom_response), 0);
+                printf("Client Connection:\n Method: %s\nPath: %s\n", header.method, header.path);
+            }
         } else {
             send(client_fd, not_found_404, strlen(not_found_404), 0);
         }
