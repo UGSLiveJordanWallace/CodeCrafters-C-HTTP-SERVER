@@ -1,6 +1,7 @@
 #include <stdint.h>
 #include <stdio.h>
 #include <stdlib.h>
+#include <sys/select.h>
 #include <sys/socket.h>
 #include <netinet/in.h>
 #include <netinet/ip.h>
@@ -8,8 +9,21 @@
 #include <errno.h>
 #include <unistd.h>
 
+#include <pthread.h>
+
 char* ok_response = "HTTP/1.1 200 OK\r\n\r\n";
 char* not_found_404 = "HTTP/1.1 404 Not Found\r\n\r\n";
+
+void handle_client_connection(int client_fd);
+
+typedef struct {
+    char* method;
+    char* path;
+    char* version;
+    char* host;
+    char* accept;
+    char* user_agent;
+} HTTP_Header;
 
 int main() {
 	// Disable output buffering
@@ -60,51 +74,99 @@ int main() {
 	client_addr_len = sizeof(client_addr);
     printf("Listening\n");
 
+    fd_set current_sockets, ready_sockets;
+    FD_ZERO(&current_sockets);
+    FD_SET(server_fd, &current_sockets);
+
     for (;;) {
-        int client_fd = accept(server_fd, (struct sockaddr *) &client_addr, &client_addr_len);
-        printf("Client connected\n");
+        ready_sockets = current_sockets;
 
-        char req[1024]; 
-        read(client_fd, req, sizeof(req));
-        char* method = strtok(req, " ");
-        char* path = strtok(NULL, " ");
-        char* version = strtok(NULL, "\r\n");
-        strtok(NULL, " ");
-        char* host = strtok(NULL, "\r\n");
-        strtok(NULL, " ");
-        char* accept = strtok(NULL, "\r\n");
-        strtok(NULL, " ");
-        char* user_agent = strtok(NULL, "\r\n");
+        if (select(FD_SETSIZE, &ready_sockets, NULL, NULL, NULL) < 0) {
+            printf("Failed To Load Clients");
+            break;
+        }
 
-        if (strcmp(method, "GET") == 0) {
-            char custom_response[1024]; 
-
-            if (strcmp(path, "/") == 0) {
-                send(client_fd, ok_response, strlen(ok_response), 0);
-                printf("Method: %s\nPath: %s\n", method, path);
-            } else if (strcmp(path, "/user-agent") == 0) {
-                sprintf(custom_response, 
-                        "HTTP/1.1 200 OK\r\n"
-                        "Content-Type: text/plain\r\n"
-                        "Content-Length: %lu\r\n\r\n%s", strlen(user_agent), user_agent);
-                send(client_fd, custom_response, strlen(custom_response), 0);
-                printf("Method: %s\nPath: %s\nVersion: %s\nHost: %s\nAgent: %s\n", method, path, version, host, user_agent);
-            } else if (strncmp(path, "/echo", 5) == 0) {
-                strtok(path, "/");
-                char* slug = strtok(NULL, "/");
-                sprintf(custom_response, 
-                        "HTTP/1.1 200 OK\r\n"
-                        "Content-Type: text/plain\r\n"
-                        "Content-Length: %lu\r\n\r\n%s", strlen(slug), slug);
-                send(client_fd, custom_response, strlen(custom_response), 0);
-                printf("Method: %s\nPath: %s\n", method, path);
-            } else {
-                send(client_fd, not_found_404, strlen(not_found_404), 0);
+        for (int i = 0; i < FD_SETSIZE; i++) {
+            if (FD_ISSET(i, &ready_sockets)) {
+                if (i == server_fd) {
+                    int client_fd = accept(server_fd, (struct sockaddr *) &client_addr, &client_addr_len);
+                    FD_SET(client_fd, &current_sockets);
+                } else {
+                    handle_client_connection(i);
+                    FD_CLR(i, &current_sockets);
+                }
             }
         }
-        close(client_fd);
+
     }
 
     close(server_fd);
 	return 0;
+}
+
+HTTP_Header parse_header(char* req) {
+    printf("\nHeader Parser Logs\n");
+    printf("------------------\n");
+    HTTP_Header header;
+
+    header.method = strtok(req, " ");
+    header.path = strtok(NULL, " ");
+    header.version = strtok(NULL, "\r\n");
+    printf("Method: %s Path: %s Version: %s\n", header.method, header.path, header.version);
+
+    char* token = strtok(NULL, " ");
+    while (token != NULL) {
+        if (strncmp(token, "\nHost", 5) == 0) {
+            header.host = strtok(NULL, "\r\n");
+            printf("Header-Host: %s\n", header.host);
+        }
+        if (strncmp(token, "\nAccept", 7) == 0) {
+            header.accept = strtok(NULL, "\r\n");
+            printf("Header-Accept: %s\n", header.accept);
+        }
+        if (strncmp(token, "\nUser-Agent", 11) == 0) {
+            header.user_agent = strtok(NULL, "\r\n");
+            printf("Header-UserAgent: %s\n", header.user_agent);
+        }
+
+        token = strtok(NULL, " ");
+    }
+    printf("------------------\n");
+
+    return header;
+}
+
+void handle_client_connection(int client_fd) {
+    char req[1024]; 
+    read(client_fd, req, sizeof(req));
+    HTTP_Header header = parse_header(req);
+
+    if (strcmp(header.method, "GET") == 0) {
+        char custom_response[1024]; 
+
+        if (strcmp(header.path, "/") == 0) {
+            send(client_fd, ok_response, strlen(ok_response), 0);
+            printf("Client Connection:\n Method: %s Path: %s\n", header.method, header.path);
+        } else if (strcmp(header.path, "/user-agent") == 0) {
+            sprintf(custom_response, 
+                    "HTTP/1.1 200 OK\r\n"
+                    "Content-Type: text/plain\r\n"
+                    "Content-Length: %lu\r\n\r\n%s", strlen(header.user_agent), header.user_agent);
+            send(client_fd, custom_response, strlen(custom_response), 0);
+            printf("Client Connection:\n Method: %s Path: %s Version: %s Host: %s Agent: %s\n", header.method, header.path, header.version, header.host, header.user_agent);
+        } else if (strncmp(header.path, "/echo", 5) == 0) {
+            strtok(header.path, "/");
+            char* slug = strtok(NULL, "/");
+            sprintf(custom_response, 
+                    "HTTP/1.1 200 OK\r\n"
+                    "Content-Type: text/plain\r\n"
+                    "Content-Length: %lu\r\n\r\n%s", strlen(slug), slug);
+            send(client_fd, custom_response, strlen(custom_response), 0);
+            printf("Client Connection:\n Method: %s\nPath: %s\n", header.method, header.path);
+        } else {
+            send(client_fd, not_found_404, strlen(not_found_404), 0);
+        }
+    }
+
+    close(client_fd);
 }
