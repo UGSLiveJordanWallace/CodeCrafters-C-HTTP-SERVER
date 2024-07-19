@@ -18,9 +18,13 @@ typedef struct {
     char* method;
     char* path;
     char* version;
+
     char* host;
     char* accept;
     char* user_agent;
+    char* content_type;
+    int content_length;
+    char* body;
 } HTTP_Header;
 
 int main(int argc, char* argv[]) {
@@ -126,6 +130,23 @@ const char* get_file_contents(char* filename, const char* dir) {
     return out;
 }
 
+int create_file(const char* dir, const char* filename, const char* file_contents, int size) {
+    char* full_path = (char*)calloc(strlen(dir) + strlen(filename), sizeof(char));
+    strncpy(full_path, dir, strlen(dir));
+    strncat(full_path, filename, strlen(filename));
+
+    printf("Creating File %s From Path: %s\nFull Path: %s\n", filename, dir, full_path);
+
+    FILE* file = fopen(filename, "w");
+    if (file == NULL) {
+        return -1;
+    }
+
+    fwrite(file_contents, sizeof(const char), size, file);
+
+    return 0;
+}
+
 HTTP_Header parse_header(char req[1024]) {
     printf("\nHeader Parser Logs\n");
     printf("------------------\n");
@@ -150,6 +171,16 @@ HTTP_Header parse_header(char req[1024]) {
             header.user_agent = strtok(NULL, "\r\n");
             printf("Header-UserAgent: %s\n", header.user_agent);
         }
+        if (strncmp(token, "\nContent-Type", 13) == 0) {
+            header.content_type = strtok(NULL, "\r\n");            
+            printf("Header-ContentType: %s\n", header.content_type);
+        }
+        if (strncmp(token, "\nContent-Length", 15) == 0) {
+            header.content_length = atoi(strtok(NULL, "\r\n"));            
+            printf("Header-ContentLength: %d\n", header.content_length);
+            header.body = strtok(NULL, "\r\n");
+            printf("Header-Body: %s\n", header.body);
+        }
 
         token = strtok(NULL, " ");
     }
@@ -160,47 +191,63 @@ HTTP_Header parse_header(char req[1024]) {
 
 void handle_client_connection(int client_fd, int argc, char* argv[]) {
     char req[1024]; 
+    char response[1024]; 
     read(client_fd, req, sizeof(req));
+    printf("\nFULL Request: %s\n", req);
     HTTP_Header header = parse_header(req);
 
     if (strcmp(header.method, "GET") == 0) {
-        char custom_response[1024]; 
 
         if (strcmp(header.path, "/") == 0) {
             send(client_fd, ok_response, strlen(ok_response), 0);
             printf("Client Connection:\n Method: %s Path: %s\n", header.method, header.path);
         } else if (strcmp(header.path, "/user-agent") == 0) {
-            sprintf(custom_response, 
+            sprintf(response, 
                     "HTTP/1.1 200 OK\r\n"
                     "Content-Type: text/plain\r\n"
                     "Content-Length: %lu\r\n\r\n%s", strlen(header.user_agent), header.user_agent);
-            send(client_fd, custom_response, strlen(custom_response), 0);
+            send(client_fd, response, strlen(response), 0);
             printf("Client Connection:\n Method: %s Path: %s Version: %s Host: %s Agent: %s\n", header.method, header.path, header.version, header.host, header.user_agent);
         } else if (strncmp(header.path, "/echo", 5) == 0) {
             strtok(header.path, "/");
             char* slug = strtok(NULL, "/");
-            sprintf(custom_response, 
+            sprintf(response, 
                     "HTTP/1.1 200 OK\r\n"
                     "Content-Type: text/plain\r\n"
                     "Content-Length: %lu\r\n\r\n%s", strlen(slug), slug);
-            send(client_fd, custom_response, strlen(custom_response), 0);
+            send(client_fd, response, strlen(response), 0);
             printf("Client Connection:\n Method: %s\nPath: %s\n", header.method, header.path);
-        } else if (strncmp(header.path, "/files", 6) == 0 && strcmp(argv[1], "--directory") == 0) {
+        } else if (strncmp(header.path, "/files", 6) == 0 && argc > 1 && strcmp(argv[1], "--directory") == 0) {
             strtok(header.path, "/");
             char* filename = strtok(NULL, "/");
             const char* file_contents = get_file_contents(filename, argv[2]);
             if (file_contents == NULL) {
                 send(client_fd, not_found_404, strlen(not_found_404), 0);
             } else {
-                sprintf(custom_response, 
+                sprintf(response, 
                         "HTTP/1.1 200 OK\r\n"
                         "Content-Type: application/octet-stream\r\n"
                         "Content-Length: %lu\r\n\r\n%s", strlen(file_contents), file_contents);
-                send(client_fd, custom_response, strlen(custom_response), 0);
+                send(client_fd, response, strlen(response), 0);
                 printf("Client Connection:\n Method: %s\nPath: %s\n", header.method, header.path);
             }
         } else {
             send(client_fd, not_found_404, strlen(not_found_404), 0);
+        }
+    }
+
+    if (strcmp(header.method, "POST") == 0 && argc > 1 && strcmp(argv[1], "--directory") == 0) {
+        if (strncmp(header.path, "/files", 6) == 0) {
+            strtok(header.path, "/");
+            char* filename = strtok(NULL, "/");
+            if (create_file(argv[2], filename, header.body, header.content_length) == 0) {
+                memset(response, '\0', 1);
+                strncpy(response, "HTTP/1.1 201 Created\r\n\r\n", 23);
+                send(client_fd, response, strlen(response), 0);
+                printf("Client Connection:\n Method: %s\nPath: %s\n", header.method, header.path);
+            } else {
+                send(client_fd, not_found_404, strlen(not_found_404), 0);
+            }
         }
     }
 
