@@ -188,14 +188,13 @@ void handle_client_connection(int client_fd, int argc, char* argv[]) {
         } else if (strncmp(header.path, "/files", 6) == 0 && strcmp(argv[1], "--directory") == 0) {
             strtok(header.path, "/");
             char* filename = strtok(NULL, "/");
-            printf("Getting File: %s\n", filename);
             const char* file_contents = get_file_contents(filename, argv[2]);
             if (file_contents == NULL) {
                 send(client_fd, not_found_404, strlen(not_found_404), 0);
             } else {
                 sprintf(custom_response, 
                         "HTTP/1.1 200 OK\r\n"
-                        "Content-Type: text/octet-stream\r\n"
+                        "Content-Type: application/octet-stream\r\n"
                         "Content-Length: %lu\r\n\r\n%s", strlen(file_contents), file_contents);
                 send(client_fd, custom_response, strlen(custom_response), 0);
                 printf("Client Connection:\n Method: %s\nPath: %s\n", header.method, header.path);
