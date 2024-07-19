@@ -127,7 +127,7 @@ const char* get_file_contents(char* filename, const char* dir) {
     fread(out, size, 1, fs);
 
     free(full_path);
-
+    fclose(fs);
     return out;
 }
 
@@ -144,7 +144,7 @@ int create_file(const char* dir, const char* filename, const char* file_contents
     }
 
     fwrite(file_contents, sizeof(const char), size, file);
-
+    fclose(file);
     return 0;
 }
 
