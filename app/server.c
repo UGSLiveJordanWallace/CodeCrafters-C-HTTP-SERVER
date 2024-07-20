@@ -110,12 +110,14 @@ int main(int argc, char* argv[]) {
 }
 
 void compression(HTTP_Header* header, char* slug, char* response) {
-    if (strcmp(header->accept_encoding, "gzip") == 0) {
-        sprintf(response, 
-                "HTTP/1.1 200 OK\r\n"
-                "Content-Type: text/plain\r\n"
-                "Content-Encoding: %s\r\n", header->accept_encoding);
-        return;
+    if (header->accept_encoding != NULL) {
+        if (strcmp(header->accept_encoding, "gzip") == 0) {
+            sprintf(response, 
+                    "HTTP/1.1 200 OK\r\n"
+                    "Content-Type: text/plain\r\n"
+                    "Content-Encoding: %s\r\n", header->accept_encoding);
+            return;
+        }
     }
     sprintf(response, 
             "HTTP/1.1 200 OK\r\n"
@@ -182,7 +184,7 @@ void parse_header(HTTP_Header* header, char req[1024]) {
             header->host = strtok(NULL, "\r\n");
             printf("Header-Host: %s\n", header->host);
         }
-        if (strncmp(token, "\nAccept", 7) == 0) {
+        if (strncmp(token, "\nAccept:", 8) == 0) {
             header->accept = strtok(NULL, "\r\n");
             printf("Header-Accept: %s\n", header->accept);
         }
@@ -200,7 +202,7 @@ void parse_header(HTTP_Header* header, char req[1024]) {
         }
         if (strncmp(token, "\nAccept-Encoding", 16) == 0) {
             header->accept_encoding = strtok(NULL, "\r\n");
-            printf("Header-AcceptEncoding %s", header->accept_encoding);
+            printf("Header-AcceptEncoding: %s\n", header->accept_encoding);
         }
 
         token = strtok(NULL, " ");
