@@ -201,8 +201,10 @@ void parse_header(HTTP_Header* header, char req[1024]) {
             printf("Header-ContentLength: %d\n", header->content_length);
         }
         if (strncmp(token, "\nAccept-Encoding", 16) == 0) {
-            header->accept_encoding = strtok(NULL, "\r\n");
-            printf("Header-AcceptEncoding: %s\n", header->accept_encoding);
+            if (strstr(strtok(NULL, "\r\n"), "gzip") != NULL) {
+                header->accept_encoding = "gzip";
+                printf("Header-AcceptEncoding: %s\n", header->accept_encoding);
+            }
         }
 
         token = strtok(NULL, " ");
