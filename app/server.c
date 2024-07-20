@@ -115,7 +115,7 @@ void compression(HTTP_Header* header, char* slug, char* response) {
             sprintf(response, 
                     "HTTP/1.1 200 OK\r\n"
                     "Content-Type: text/plain\r\n"
-                    "Content-Encoding: %s\r\n", header->accept_encoding);
+                    "Content-Encoding: %s", header->accept_encoding);
             return;
         }
     }
