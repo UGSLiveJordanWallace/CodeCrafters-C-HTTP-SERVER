@@ -111,19 +111,19 @@ int main(int argc, char* argv[]) {
 	return 0;
 }
 
-void compression(HTTP_Header* header, char* slug, char* response) {
+void compression(HTTP_Header* header, char* slug, char* response, size_t* response_size) {
     if (header->accept_encoding != NULL) {
         if (strcmp(header->accept_encoding, "gzip") == 0) {
             z_stream z;
 
             size_t out_size = 128 + strlen(slug);
-            unsigned char* output;
+            unsigned char* output =  (unsigned char*)calloc(out_size, sizeof(unsigned char));
 
             z.zalloc = Z_NULL;
             z.zfree = Z_NULL;
             z.opaque = Z_NULL;
             z.avail_in = (uInt)strlen(slug);
-            z.next_in = (Bytef *)slug;
+            z.next_in = (Bytef *)(unsigned char*)slug;
             z.avail_out = (uInt)out_size;
             z.next_out = (Bytef *)output;
 
@@ -137,6 +137,11 @@ void compression(HTTP_Header* header, char* slug, char* response) {
                     "Content-Encoding: %s\r\n"
                     "Content-Length: %lu\r\n\r\n"
                     "%s\n", header->accept_encoding, z.total_out, output);
+
+            *response_size = z.total_out + strlen(response);
+            printf("Z Total Out: %lu Old Response Body: %lu\n", z.total_out, strlen(response));
+
+            free(output);
             return;
         }
     }
@@ -144,6 +149,7 @@ void compression(HTTP_Header* header, char* slug, char* response) {
             "HTTP/1.1 200 OK\r\n"
             "Content-Type: text/plain\r\n"
             "Content-Length: %lu\r\n\r\n%s", strlen(slug), slug);
+    *response_size =  strlen(response);
 }
 
 const char* get_file_contents(char* filename, const char* dir) {
@@ -263,8 +269,10 @@ void handle_client_connection(int client_fd, int argc, char* argv[]) {
         } else if (strncmp(header->path, "/echo", 5) == 0) {
             strtok(header->path, "/");
             char* slug = strtok(NULL, "/");
-            compression(header, slug, response);
-            send(client_fd, response, strlen(response), 0);
+            size_t response_size;
+            compression(header, slug, response, &response_size);
+            printf("%lu\n", response_size);
+            send(client_fd, response, response_size, 0);
             printf("Client Connection:\n Method: %s\nPath: %s\n", header->method, header->path);
         } else if (strncmp(header->path, "/files", 6) == 0 && argc > 1 && strcmp(argv[1], "--directory") == 0) {
             strtok(header->path, "/");
