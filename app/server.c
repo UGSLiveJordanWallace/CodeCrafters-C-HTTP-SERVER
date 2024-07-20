@@ -26,6 +26,8 @@ typedef struct {
     char* content_type;
     int content_length;
     char* body;
+
+    char* accept_encoding;
 } HTTP_Header;
 
 int main(int argc, char* argv[]) {
@@ -107,6 +109,20 @@ int main(int argc, char* argv[]) {
 	return 0;
 }
 
+void compression(HTTP_Header* header, char* slug, char* response) {
+    if (strcmp(header->accept_encoding, "gzip") == 0) {
+        sprintf(response, 
+                "HTTP/1.1 200 OK\r\n"
+                "Content-Type: text/plain\r\n"
+                "Content-Encoding: %s\r\n", header->accept_encoding);
+        return;
+    }
+    sprintf(response, 
+            "HTTP/1.1 200 OK\r\n"
+            "Content-Type: text/plain\r\n"
+            "Content-Length: %lu\r\n\r\n%s", strlen(slug), slug);
+}
+
 const char* get_file_contents(char* filename, const char* dir) {
 
     char* full_path = (char*)calloc(strlen(dir) + strlen(filename), sizeof(char));
@@ -182,6 +198,10 @@ void parse_header(HTTP_Header* header, char req[1024]) {
             header->content_length = atoi(strtok(NULL, "\r\n"));            
             printf("Header-ContentLength: %d\n", header->content_length);
         }
+        if (strncmp(token, "\nAccept-Encoding", 16) == 0) {
+            header->accept_encoding = strtok(NULL, "\r\n");
+            printf("Header-AcceptEncoding %s", header->accept_encoding);
+        }
 
         token = strtok(NULL, " ");
     }
@@ -218,10 +238,7 @@ void handle_client_connection(int client_fd, int argc, char* argv[]) {
         } else if (strncmp(header->path, "/echo", 5) == 0) {
             strtok(header->path, "/");
             char* slug = strtok(NULL, "/");
-            sprintf(response, 
-                    "HTTP/1.1 200 OK\r\n"
-                    "Content-Type: text/plain\r\n"
-                    "Content-Length: %lu\r\n\r\n%s", strlen(slug), slug);
+            compression(header, slug, response);
             send(client_fd, response, strlen(response), 0);
             printf("Client Connection:\n Method: %s\nPath: %s\n", header->method, header->path);
         } else if (strncmp(header->path, "/files", 6) == 0 && argc > 1 && strcmp(argv[1], "--directory") == 0) {
