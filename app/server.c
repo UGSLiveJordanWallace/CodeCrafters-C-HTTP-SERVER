@@ -111,7 +111,7 @@ int main(int argc, char* argv[]) {
 	return 0;
 }
 
-void compression(HTTP_Header* header, char* slug, char* response, size_t* response_size) {
+unsigned char* compression(HTTP_Header* header, char* slug, char* response, size_t* output_size) {
     if (header->accept_encoding != NULL) {
         if (strcmp(header->accept_encoding, "gzip") == 0) {
             z_stream z;
@@ -135,20 +135,20 @@ void compression(HTTP_Header* header, char* slug, char* response, size_t* respon
                     "HTTP/1.1 200 OK\r\n"
                     "Content-Encoding: %s\r\n"
                     "Content-Type: text/plain\r\n"
-                    "Content-Length: %lu\r\n\r\n%s", header->accept_encoding, z.total_out, output);
+                    "Content-Length: %lu\r\n\r\n", header->accept_encoding, z.total_out);
 
-            *response_size = z.total_out + strlen(response);
+            *output_size = z.total_out;
             printf("Z Total Out: %lu Old Response Body: %lu\n", z.total_out, strlen(response));
 
-            free(output);
-            return;
+            return output;
         }
     }
     sprintf(response, 
             "HTTP/1.1 200 OK\r\n"
             "Content-Type: text/plain\r\n"
             "Content-Length: %lu\r\n\r\n%s", strlen(slug), slug);
-    *response_size =  strlen(response);
+    *output_size =  strlen(response);
+    return NULL;
 }
 
 const char* get_file_contents(char* filename, const char* dir) {
@@ -268,11 +268,14 @@ void handle_client_connection(int client_fd, int argc, char* argv[]) {
         } else if (strncmp(header->path, "/echo", 5) == 0) {
             strtok(header->path, "/");
             char* slug = strtok(NULL, "/");
-            size_t response_size;
-            compression(header, slug, response, &response_size);
-            printf("%lu\n", response_size);
-            send(client_fd, response, response_size, 0);
+            size_t output_size;
+            unsigned char* output = compression(header, slug, response, &output_size);
+            send(client_fd, response, strlen(response), 0);
+            if (output) {
+                send(client_fd, output, output_size, 0);
+            }
             printf("Client Connection:\n Method: %s\nPath: %s\n", header->method, header->path);
+            free(output);
         } else if (strncmp(header->path, "/files", 6) == 0 && argc > 1 && strcmp(argv[1], "--directory") == 0) {
             strtok(header->path, "/");
             char* filename = strtok(NULL, "/");
