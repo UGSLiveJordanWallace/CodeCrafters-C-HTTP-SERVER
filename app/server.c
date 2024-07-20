@@ -130,6 +130,8 @@ void compression(HTTP_Header* header, char* slug, char* response) {
             deflate(&zlib_stream, Z_FINISH);
             deflateEnd(&zlib_stream);
 
+            printf("Compression: Output %s", output);
+
 //            deflateInit2(&zlib_stream, Z_DEFAULT_COMPRESSION, Z_DEFLATED, 15 | 16, 8, Z_DEFAULT_STRATEGY);
 //            deflate(&zlib_stream, Z_FINISH);
 //            deflateEnd(&zlib_stream); 
