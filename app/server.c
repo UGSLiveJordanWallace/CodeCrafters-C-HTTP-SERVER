@@ -10,7 +10,6 @@
 #include <unistd.h>
 
 #include <zlib.h>
-#include <zconf.h>
 
 char* ok_response_200 = "HTTP/1.1 200 OK\r\n\r\n";
 char* not_found_404 = "HTTP/1.1 404 Not Found\r\n\r\n";
@@ -115,33 +114,29 @@ int main(int argc, char* argv[]) {
 void compression(HTTP_Header* header, char* slug, char* response) {
     if (header->accept_encoding != NULL) {
         if (strcmp(header->accept_encoding, "gzip") == 0) {
-            z_stream zlib_stream;
-            size_t out_size;
-            unsigned char* output = (unsigned char*)calloc(out_size, sizeof(unsigned char*));
-            zlib_stream.zalloc = Z_NULL;
-            zlib_stream.zfree = Z_NULL;
-            zlib_stream.opaque = Z_NULL;
-            zlib_stream.avail_in = (uInt)strlen(slug);
-            zlib_stream.next_in = (Bytef *)slug;
-            zlib_stream.avail_out = (uInt)out_size;
-            zlib_stream.next_out = (Bytef *)output;
+            z_stream z;
 
-            deflateInit2(&zlib_stream, Z_DEFAULT_COMPRESSION, Z_DEFLATED, 16, 8, Z_DEFAULT_STRATEGY);
-            deflate(&zlib_stream, Z_FINISH);
-            deflateEnd(&zlib_stream);
+            size_t out_size = 128 + strlen(slug);
+            unsigned char* output;
 
-            printf("Compression: Output %s", output);
+            z.zalloc = Z_NULL;
+            z.zfree = Z_NULL;
+            z.opaque = Z_NULL;
+            z.avail_in = (uInt)strlen(slug);
+            z.next_in = (Bytef *)slug;
+            z.avail_out = (uInt)out_size;
+            z.next_out = (Bytef *)output;
 
-//            deflateInit2(&zlib_stream, Z_DEFAULT_COMPRESSION, Z_DEFLATED, 15 | 16, 8, Z_DEFAULT_STRATEGY);
-//            deflate(&zlib_stream, Z_FINISH);
-//            deflateEnd(&zlib_stream); 
+            deflateInit2(&z, Z_DEFAULT_COMPRESSION, Z_DEFLATED, 15 | 16, 8, Z_DEFAULT_STRATEGY);
+            deflate(&z, Z_FINISH);
+            deflateEnd(&z); 
 
             sprintf(response, 
                     "HTTP/1.1 200 OK\r\n"
                     "Content-Type: text/plain\r\n"
                     "Content-Encoding: %s\r\n"
-                    "Content-Length: %ld\r\n\r\n"
-                    "%s\n", header->accept_encoding, out_size, output);
+                    "Content-Length: %lu\r\n\r\n"
+                    "%s\n", header->accept_encoding, z.total_out, output);
             return;
         }
     }
