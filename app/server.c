@@ -1,8 +1,10 @@
+#include <asm-generic/ioctls.h>
 #include <stdint.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <sys/select.h>
 #include <sys/socket.h>
+#include <sys/ioctl.h>
 #include <netinet/in.h>
 #include <netinet/ip.h>
 #include <string.h>
@@ -131,95 +133,101 @@ const char* get_file_contents(char* filename, const char* dir) {
     return out;
 }
 
-int create_file(const char* dir, const char* filename, const char* file_contents, int size) {
+int create_file(const char* dir, const char* filename, char* file_contents) {
     char* full_path = (char*)calloc(strlen(dir) + strlen(filename), sizeof(char));
     strncpy(full_path, dir, strlen(dir));
     strncat(full_path, filename, strlen(filename));
 
     printf("Creating File %s From Path: %s\nFull Path: %s\n", filename, dir, full_path);
 
-    FILE* file = fopen(filename, "w");
+    FILE* file = fopen(full_path, "w");
     if (file == NULL) {
         return -1;
     }
 
-    fwrite(file_contents, sizeof(const char), size, file);
+    fprintf(file, "%s", file_contents);
     fclose(file);
     return 0;
 }
 
-HTTP_Header parse_header(char req[1024]) {
-    printf("\nHeader Parser Logs\n");
+void parse_header(HTTP_Header* header, char req[1024]) {
+    printf("\n-----------------\n");
+    printf("Header Parser Logs\n");
     printf("------------------\n");
-    HTTP_Header header;
+    char copy[1024];
+    strncpy(copy, req, 1024);
 
-    header.method = strtok(req, " ");
-    header.path = strtok(NULL, " ");
-    header.version = strtok(NULL, "\r\n");
-    printf("Method: %s Path: %s Version: %s\n", header.method, header.path, header.version);
+    header->method = strtok(req, " ");
+    header->path = strtok(NULL, " ");
+    header->version = strtok(NULL, "\r\n");
+    printf("Method: %s Path: %s Version: %s\n", header->method, header->path, header->version);
 
     char* token = strtok(NULL, " ");
     while (token != NULL) {
         if (strncmp(token, "\nHost", 5) == 0) {
-            header.host = strtok(NULL, "\r\n");
-            printf("Header-Host: %s\n", header.host);
+            header->host = strtok(NULL, "\r\n");
+            printf("Header-Host: %s\n", header->host);
         }
         if (strncmp(token, "\nAccept", 7) == 0) {
-            header.accept = strtok(NULL, "\r\n");
-            printf("Header-Accept: %s\n", header.accept);
+            header->accept = strtok(NULL, "\r\n");
+            printf("Header-Accept: %s\n", header->accept);
         }
         if (strncmp(token, "\nUser-Agent", 11) == 0) {
-            header.user_agent = strtok(NULL, "\r\n");
-            printf("Header-UserAgent: %s\n", header.user_agent);
+            header->user_agent = strtok(NULL, "\r\n");
+            printf("Header-UserAgent: %s\n", header->user_agent);
         }
         if (strncmp(token, "\nContent-Type", 13) == 0) {
-            header.content_type = strtok(NULL, "\r\n");            
-            printf("Header-ContentType: %s\n", header.content_type);
+            header->content_type = strtok(NULL, "\r\n");            
+            printf("Header-ContentType: %s\n", header->content_type);
         }
         if (strncmp(token, "\nContent-Length", 15) == 0) {
-            header.content_length = atoi(strtok(NULL, "\r\n"));            
-            printf("Header-ContentLength: %d\n", header.content_length);
-            header.body = strtok(NULL, "\r\n");
-            printf("Header-Body: %s\n", header.body);
+            header->content_length = atoi(strtok(NULL, "\r\n"));            
+            printf("Header-ContentLength: %d\n", header->content_length);
         }
 
         token = strtok(NULL, " ");
     }
-    printf("------------------\n");
 
-    return header;
+    if (header->content_type) {
+        char* body = strstr(copy, "\r\n\r\n");
+        header->body = (char*)(calloc)(strlen(body), sizeof(char));
+        memmove(header->body, strtok(body, "\r\n\r\n"), strlen(body));
+        printf("Found Content: %s\n", header->body);
+    }
+
+    printf("------------------\n");
 }
 
 void handle_client_connection(int client_fd, int argc, char* argv[]) {
-    char req[1024]; 
-    char response[1024]; 
+    char req[1024] = ""; 
+    char response[1024] = ""; 
     read(client_fd, req, sizeof(req));
     printf("\nFULL Request: %s\n", req);
-    HTTP_Header header = parse_header(req);
+    HTTP_Header* header = (HTTP_Header*)calloc(1, sizeof(HTTP_Header));
+    parse_header(header, req);
 
-    if (strcmp(header.method, "GET") == 0) {
-
-        if (strcmp(header.path, "/") == 0) {
+    if (strcmp(header->method, "GET") == 0) {
+        if (strcmp(header->path, "/") == 0) {
             send(client_fd, ok_response_200, strlen(ok_response_200), 0);
-            printf("Client Connection:\n Method: %s Path: %s\n", header.method, header.path);
-        } else if (strcmp(header.path, "/user-agent") == 0) {
+            printf("Client Connection:\n Method: %s Path: %s\n", header->method, header->path);
+        } else if (strcmp(header->path, "/user-agent") == 0) {
             sprintf(response, 
                     "HTTP/1.1 200 OK\r\n"
                     "Content-Type: text/plain\r\n"
-                    "Content-Length: %lu\r\n\r\n%s", strlen(header.user_agent), header.user_agent);
+                    "Content-Length: %lu\r\n\r\n%s", strlen(header->user_agent), header->user_agent);
             send(client_fd, response, strlen(response), 0);
-            printf("Client Connection:\n Method: %s Path: %s Version: %s Host: %s Agent: %s\n", header.method, header.path, header.version, header.host, header.user_agent);
-        } else if (strncmp(header.path, "/echo", 5) == 0) {
-            strtok(header.path, "/");
+            printf("Client Connection:\n Method: %s Path: %s Version: %s Host: %s Agent: %s\n", header->method, header->path, header->version, header->host, header->user_agent);
+        } else if (strncmp(header->path, "/echo", 5) == 0) {
+            strtok(header->path, "/");
             char* slug = strtok(NULL, "/");
             sprintf(response, 
                     "HTTP/1.1 200 OK\r\n"
                     "Content-Type: text/plain\r\n"
                     "Content-Length: %lu\r\n\r\n%s", strlen(slug), slug);
             send(client_fd, response, strlen(response), 0);
-            printf("Client Connection:\n Method: %s\nPath: %s\n", header.method, header.path);
-        } else if (strncmp(header.path, "/files", 6) == 0 && argc > 1 && strcmp(argv[1], "--directory") == 0) {
-            strtok(header.path, "/");
+            printf("Client Connection:\n Method: %s\nPath: %s\n", header->method, header->path);
+        } else if (strncmp(header->path, "/files", 6) == 0 && argc > 1 && strcmp(argv[1], "--directory") == 0) {
+            strtok(header->path, "/");
             char* filename = strtok(NULL, "/");
             const char* file_contents = get_file_contents(filename, argv[2]);
             if (file_contents == NULL) {
@@ -230,22 +238,20 @@ void handle_client_connection(int client_fd, int argc, char* argv[]) {
                         "Content-Type: application/octet-stream\r\n"
                         "Content-Length: %lu\r\n\r\n%s", strlen(file_contents), file_contents);
                 send(client_fd, response, strlen(response), 0);
-                printf("Client Connection:\n Method: %s\nPath: %s\n", header.method, header.path);
+                printf("Client Connection:\n Method: %s\nPath: %s\n", header->method, header->path);
             }
         } else {
             send(client_fd, not_found_404, strlen(not_found_404), 0);
         }
-    }
-
-    if (strcmp(header.method, "POST") == 0 && argc > 1 && strcmp(argv[1], "--directory") == 0) {
-        if (strncmp(header.path, "/files", 6) == 0) {
-            strtok(header.path, "/");
+    } else if (strcmp(header->method, "POST") == 0 && argc > 1 && strcmp(argv[1], "--directory") == 0) {
+        if (strncmp(header->path, "/files", 6) == 0) {
+            strtok(header->path, "/");
             char* filename = strtok(NULL, "/");
-            if (create_file(argv[2], filename, header.body, header.content_length) == 0) {
+            if (create_file(argv[2], filename, header->body) == 0) {
                 memset(response, '\0', 1);
                 strncpy(response, file_created_201, strlen(file_created_201));
                 send(client_fd, response, strlen(response), 0);
-                printf("Client Connection:\n Method: %s\nPath: %s\n", header.method, header.path);
+                printf("Client Connection:\n Method: %s\nPath: %s\n", header->method, header->path);
             } else {
                 send(client_fd, not_found_404, strlen(not_found_404), 0);
             }
@@ -253,4 +259,5 @@ void handle_client_connection(int client_fd, int argc, char* argv[]) {
     }
 
     close(client_fd);
+    free(header);
 }
