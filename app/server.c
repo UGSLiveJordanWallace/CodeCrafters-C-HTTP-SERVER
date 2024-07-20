@@ -133,10 +133,9 @@ void compression(HTTP_Header* header, char* slug, char* response, size_t* respon
 
             sprintf(response, 
                     "HTTP/1.1 200 OK\r\n"
-                    "Content-Type: text/plain\r\n"
                     "Content-Encoding: %s\r\n"
-                    "Content-Length: %lu\r\n\r\n"
-                    "%s\n", header->accept_encoding, z.total_out, output);
+                    "Content-Type: text/plain\r\n"
+                    "Content-Length: %lu\r\n\r\n%s", header->accept_encoding, z.total_out, output);
 
             *response_size = z.total_out + strlen(response);
             printf("Z Total Out: %lu Old Response Body: %lu\n", z.total_out, strlen(response));
