@@ -112,7 +112,7 @@ int main(int argc, char* argv[]) {
 	return 0;
 }
 
-void compression(HTTP_Header* header, char* slug, char* response, size_t* size) {
+void compression(HTTP_Header* header, char* slug, char* response) {
     if (header->accept_encoding != NULL) {
         if (strcmp(header->accept_encoding, "gzip") == 0) {
             z_stream zlib_stream;
@@ -140,8 +140,6 @@ void compression(HTTP_Header* header, char* slug, char* response, size_t* size) 
                     "Content-Encoding: %s\r\n"
                     "Content-Length: %ld\r\n\r\n"
                     "%s\n", header->accept_encoding, out_size, output);
-
-            *size = out_size;
             return;
         }
     }
@@ -268,9 +266,8 @@ void handle_client_connection(int client_fd, int argc, char* argv[]) {
         } else if (strncmp(header->path, "/echo", 5) == 0) {
             strtok(header->path, "/");
             char* slug = strtok(NULL, "/");
-            size_t response_size;
-            compression(header, slug, response, &response_size);
-            send(client_fd, response, response_size, 0);
+            compression(header, slug, response);
+            send(client_fd, response, strlen(response), 0);
             printf("Client Connection:\n Method: %s\nPath: %s\n", header->method, header->path);
         } else if (strncmp(header->path, "/files", 6) == 0 && argc > 1 && strcmp(argv[1], "--directory") == 0) {
             strtok(header->path, "/");
